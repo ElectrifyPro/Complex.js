@@ -1,6 +1,7 @@
 {
 	"name": "big-complex.js",
 	"description": "Arbitrary-precision Complex type, backed by decimal.js",
+	"version": "1.0.0",
 	"type": "module",
 	"main": "complex.js",
 	"repository": {
