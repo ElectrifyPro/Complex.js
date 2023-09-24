@@ -1,7 +1,8 @@
 {
-	"name": "complex.js",
+	"name": "big-complex.js",
 	"description": "Arbitrary-precision Complex type, backed by decimal.js",
 	"type": "module",
+	"main": "complex.js",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/MikeMcl/decimal.js.git"
