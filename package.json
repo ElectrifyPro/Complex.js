@@ -1,12 +1,12 @@
 {
 	"name": "big-complex.js",
 	"description": "Arbitrary-precision Complex type, backed by decimal.js",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"type": "module",
 	"main": "complex.js",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/MikeMcl/decimal.js.git"
+		"url": "https://github.com/ElectrifyPro/big-complex.js.git"
 	},
 	"dependencies": {
 		"decimal.js": "^10.4.3"
