@@ -1,6 +1,5 @@
+import Decimal from 'decimal.js';
 import {
-	NAN,
-	INFINITY,
 	ZERO,
 	ONE_HALF,
 	NEG_ONE,
@@ -17,377 +16,481 @@ import {
  * Arbitrary-precision complex numbers, implemented as a wrapper around Decimal.js.
  */
 export default class Complex {
-	constructor(real, imaginary) {
-		this.real = mJS.bignumber(real);
-		this.imaginary = mJS.bignumber(imaginary);
+	/**
+	 * @param {Decimal.Value} re The real part. Defaults to 0.
+	 * @param {Decimal.Value} im The imaginary part. Defaults to 0.
+	 */
+	constructor(re = ZERO, im = ZERO) {
+		this.re = new Decimal(re);
+		this.im = new Decimal(im);
 	}
 
-	// convert a value to a complex number
-	static convertToComplex(v) {
-		if (v instanceof Complex) {
-			return v;
-		}
-
-		return new Complex(v, ZERO);
+	/**
+	 * Clones this complex number.
+	 */
+	clone() {
+		return new Complex(this.re, this.im);
 	}
 
-	// compare two complex numbers
-	static equals(c1, c2) {
-		return c1.real.equals(c2.real) && c1.imaginary.equals(c2.imaginary);
+	/**
+	 * Compares this complex number to another complex number for equality.
+	 * @param {Complex} other
+	 */
+	eq(other) {
+		return this.re.eq(other.re) && this.im.eq(other.im);
 	}
 
-	// approximate two complex numbers
-	static approxEquals(c1, c2) {
-		return c1.real.sub(c2.real).abs().lessThan('1e-6') && c1.imaginary.sub(c2.imaginary).abs().lessThan('1e-6');
+	/**
+	 * Adds two complex numbers, returning a new complex number.
+	 * @param {Complex} other
+	 */
+	add(other) {
+		return new Complex(this.re.add(other.re), this.im.add(other.im));
 	}
 
-	static add(c1, c2) {
-		c1 = Complex.convertToComplex(c1);
-		c2 = Complex.convertToComplex(c2);
-
-		return new Complex(c1.real.add(c2.real), c1.imaginary.add(c2.imaginary));
+	/**
+	 * Subtracts two complex numbers, returning a new complex number.
+	 * @param {Complex} other
+	 */
+	sub(other) {
+		return new Complex(this.re.sub(other.re), this.im.sub(other.im));
 	}
 
-	static subtract(c1, c2) {
-		c1 = Complex.convertToComplex(c1);
-		c2 = Complex.convertToComplex(c2);
-
-		return new Complex(c1.real.sub(c2.real), c1.imaginary.sub(c2.imaginary));
+	/**
+	 * Multiplies two complex numbers, returning a new complex number.
+	 * @param {Complex} other
+	 */
+	mul(other) {
+		return new Complex(
+			this.re.mul(other.re).sub(this.im.mul(other.im)),
+			this.re.mul(other.im).add(this.im.mul(other.re)),
+		);
 	}
 
-	static multiply(c1, c2) {
-		c1 = Complex.convertToComplex(c1);
-		c2 = Complex.convertToComplex(c2);
-
-		const real = mJS.add(c1.imaginary.mul(c2.imaginary).neg(), c1.real.mul(c2.real));
-		const imaginary = mJS.add(c1.imaginary.mul(c2.real), c1.real.mul(c2.imaginary));
-
-		return new Complex(real, imaginary);
+	/**
+	 * Divides two complex numbers, returning a new complex number.
+	 * @param {Complex} other
+	 */
+	div(other) {
+		const denominatorSum = other.re.pow(TWO).add(other.im.pow(TWO));
+		return new Complex(
+			this.re.mul(other.re).add(this.im.mul(other.im)).div(denominatorSum),
+			this.im.mul(other.re).sub(this.re.mul(other.im)).div(denominatorSum),
+		);
 	}
 
-	static divide(c1, c2) {
-		c1 = Complex.convertToComplex(c1);
-		c2 = Complex.convertToComplex(c2);
-
-		const denominatorSum = mJS.add(c2.real.pow(TWO), c2.imaginary.pow(TWO));
-		const real = mJS.add(c1.real.mul(c2.real), c1.imaginary.mul(c2.imaginary)).div(denominatorSum);
-		const imaginary = mJS.subtract(c1.imaginary.mul(c2.real), c1.real.mul(c2.imaginary)).div(denominatorSum);
-
-		return new Complex(real, imaginary);
+	/**
+	 * Returns the reciprocal of this complex number, i.e. 1 / this.
+	 */
+	recip() {
+		const denominatorSum = this.re.pow(TWO).add(this.im.pow(TWO));
+		return new Complex(
+			this.re.div(denominatorSum),
+			this.im.neg().div(denominatorSum),
+		);
 	}
 
-	// formula taken from https://mathworld.wolfram.com/ComplexExponentiation.html
-	static exponent(c, p) {
-		c = Complex.convertToComplex(c);
-		p = Complex.convertToComplex(p);
+	/**
+	 * Returns a new complex number whose value is this complex number, raised to the power of the given complex number.
+	 * @param {Complex} other
+	 */
+	pow(other) {
+		// derived from https://mathworld.wolfram.com/ComplexExponentiation.html
 
 		// imaginary number raised to integer power test
-		if (c.real.equals(ZERO) && p.imaginary.equals(ZERO) && p.real.isInt()) {
-			const pow = c.imaginary.pow(p.real);
-			if (p.real.mod(FOUR).equals(ZERO)) {
+		if (this.re.eq(ZERO) && other.im.eq(ZERO) && other.re.isInt()) {
+			const pow = this.im.pow(other.re);
+			if (other.re.mod(FOUR).eq(ZERO)) { // i^(4n) = 1
 				return new Complex(pow, ZERO);
-			} else if (p.real.add(ONE).mod(FOUR).equals(ZERO)) {
+			} else if (other.re.add(ONE).mod(FOUR).eq(ZERO)) { // i^(4n + 1) = i
 				return new Complex(ZERO, NEG_ONE.mul(pow));
-			} else if (p.real.mod(TWO).equals(ZERO)) {
+			} else if (other.re.mod(TWO).eq(ZERO)) { // i^(2n) = -1
 				return new Complex(NEG_ONE.mul(pow), ZERO);
-			} else if (p.real.add(THREE).mod(FOUR).equals(ZERO)) {
+			} else if (other.re.add(THREE).mod(FOUR).eq(ZERO)) { // i^(4n + 3) = -i
 				return new Complex(ZERO, pow);
 			}
 		}
 
-		const r = c.mod();
-		const cArg = c.arg();
+		const r = this.mod();
+		const cArg = this.arg();
 
-		const leftFactor = r.pow(p.real).mul(E.pow(p.imaginary.mul(cArg).neg()));
-		const ratio = mJS.add(p.real.mul(cArg), p.imaginary.mul(ln(r.pow(TWO))).div(TWO));
+		const leftFactor = r.pow(other.re).mul(E.pow(other.im.mul(cArg).neg()));
+		const ratio = other.re.mul(cArg).add(
+			other.im.mul(r.pow(TWO).ln()).div(TWO)
+		);
 
-		const real = mJS.cos(ratio).mul(leftFactor);
-		const imaginary = mJS.sin(ratio).mul(leftFactor);
-
-		return new Complex(real, imaginary);
+		return new Complex(
+			ratio.cos().mul(leftFactor),
+			ratio.sin().mul(leftFactor),
+		);
 	}
 
-	static sqrt(c) {
-		c = Complex.convertToComplex(c);
-
-		if (c.imaginary.equals(ZERO)) {
-			if (c.real.greaterThanOrEqualTo(ZERO)) {
-				return new Complex(c.real.sqrt(), ZERO);
+	/**
+	 * Returns the square root of this complex number.
+	 */
+	sqrt() {
+		if (this.im.eq(ZERO)) {
+			if (this.re.gte(ZERO)) {
+				return new Complex(this.re.sqrt());
 			} else {
-				return new Complex(ZERO, c.real.abs().sqrt());
+				return new Complex(ZERO, this.re.abs().sqrt());
 			}
 		} else {
-			return Complex.exponent(c, ONE_HALF);
+			return this.pow(new Complex(ONE_HALF));
 		}
 	}
 
-	// returns modulus / absolute value of complex number (magnitude as if it's a vector)
+	/**
+	 * Returns the modulus / absolute value of this complex number, i.e. the magnitude of the complex number.
+	 */
 	mod() {
-		return mJS.hypot(this.real, this.imaginary);
+		return Decimal.hypot(this.re, this.im);
 	}
 
-	// returns the argument of a complex number
+	/**
+	 * Returns the argument of this complex number, i.e. the angle between the positive real axis and the vector representing this complex number.
+	 */
 	arg() {
-		return mJS.atan2(this.imaginary, this.real);
+		return Decimal.atan2(this.im, this.re);
 	}
 
-	// returns the conjugate of a complex number
+	/**
+	 * Returns the complex conjugate of this complex number.
+	 */
 	conj() {
-		return new Complex(this.real, this.imaginary.neg());
+		return new Complex(this.re, this.im.neg());
 	}
 
-	static log(c, b = TEN) {
-		c = Complex.convertToComplex(c);
-		b = Complex.convertToComplex(b);
-		return Complex.divide(Complex.ln(c), Complex.ln(b));
+	/**
+	 * Returns the logarithm base `n` of this complex number.
+	 * @param {Complex} n The base of the logarithm. Defaults to 10.
+	 */
+	log(n = new Complex(TEN)) {
+		return Complex.divide(this.ln(), n.ln());
 	}
 
-	static ln(c) {
-		c = Complex.convertToComplex(c);
-		return new Complex(ln(c.mod()), c.arg());
+	/**
+	 * Returns the natural logarithm of this complex number.
+	 */
+	ln() {
+		return new Complex(this.mod().ln(), this.arg());
 	}
 
-	static lerp(c1, c2, t) {
-		c1 = Complex.convertToComplex(c1);
-		c2 = Complex.convertToComplex(c2);
+	/**
+	 * Linearly interpolates between this complex number and another complex number.
+	 * @param {Complex} other
+	 * @param {Decimal.Value} t The interpolation parameter.
+	 */
+	lerp(other, t) {
 		const ratio = ONE.sub(t);
-
-		return new Complex(mJS.add(ratio.mul(c1.real), t.mul(c2.real)), mJS.add(ratio.mul(c1.imaginary), t.mul(c2.imaginary)));
+		return new Complex(
+			ratio.mul(this.re).add(t.mul(other.re)),
+			ratio.mul(this.im).add(t.mul(other.im)),
+		);
 	}
 
-	static sigRound(c, d = ONE) {
-		c = Complex.convertToComplex(c);
-		return new Complex(siground(c.real, d), siground(c.imaginary, d));
+	/**
+	 * Returns a complex number with the real and imaginary part rounded to `d` significant digits.
+	 * @param {Decimal.Value} d
+	 */
+	toSignificantDigits(d) {
+		return new Complex(
+			this.re.toSignificantDigits(d),
+			this.im.toSignificantDigits(d),
+		);
 	}
 
-	static round(c, s = ONE) {
-		c = Complex.convertToComplex(c);
-		return new Complex(round(c.real, s), round(c.imaginary, s));
+	/**
+	 * Returns a complex number with the real and imaginary part rounded to the nearest integer.
+	 */
+	round() {
+		return new Complex(
+			this.re.round(),
+			this.im.round(),
+		);
 	}
 
-	static ceil(c, s = ONE) {
-		c = Complex.convertToComplex(c);
-		return new Complex(ceil(c.real, s), ceil(c.imaginary, s));
+	/**
+	 * Returns a complex number with the real and imaginary part rounded up to the nearest integer.
+	 */
+	ceil() {
+		return new Complex(
+			this.re.ceil(),
+			this.im.ceil(),
+		);
 	}
 
-	static floor(c, s = ONE) {
-		c = Complex.convertToComplex(c);
-		return new Complex(floor(c.real, s), floor(c.imaginary, s));
+	/**
+	 * Returns a complex number with the real and imaginary part rounded down to the nearest integer.
+	 */
+	floor() {
+		return new Complex(
+			this.re.floor(),
+			this.im.floor(),
+		);
 	}
 
-	static sin(c) {
-		c = Complex.convertToComplex(c);
-		return new Complex(mJS.sin(c.real).mul(cosh(c.imaginary)), mJS.cos(c.real).mul(sinh(c.imaginary)));
+	/**
+	 * Returns the sine of this complex number.
+	 */
+	sin() {
+		return new Complex(
+			this.re.sin().mul(this.im.cosh()),
+			this.re.cos().mul(this.im.sinh()),
+		);
 	}
 
-	static cos(c) {
-		c = Complex.convertToComplex(c);
-		return new Complex(mJS.cos(c.real).mul(cosh(c.imaginary)), mJS.sin(c.real).mul(sinh(c.imaginary)).neg());
+	/**
+	 * Returns the cosine of this complex number.
+	 */
+	cos() {
+		return new Complex(
+			this.re.cos().mul(this.im.cosh()),
+			this.re.sin().mul(this.im.sinh()).neg(),
+		);
 	}
 
-	static tan(c) {
-		return Complex.divide(Complex.sin(c), Complex.cos(c));
+	/**
+	 * Returns the tangent of this complex number.
+	 */
+	tan() {
+		return this.sin().div(this.cos());
 	}
 
-	static csc(c) {
-		return Complex.divide(ONE, Complex.sin(c));
+	/**
+	 * Returns the cosecant of this complex number.
+	 */
+	csc() {
+		return this.sin().recip();
 	}
 
-	static sec(c) {
-		return Complex.divide(ONE, Complex.cos(c));
+	/**
+	 * Returns the secant of this complex number.
+	 */
+	sec() {
+		return this.cos().recip();
 	}
 
-	static cot(c) {
-		return Complex.divide(ONE, Complex.tan(c));
+	/**
+	 * Returns the cotangent of this complex number.
+	 */
+	cot() {
+		return this.tan().recip();
 	}
 
-	// formula from http://mathonweb.com/help_ebook/html/complex_funcs.htm
-	static asin(c) {
-		c = Complex.convertToComplex(c);
+	/**
+	 * Returns the inverse sine of this complex number.
+	 */
+	asin() {
+		// derived from http://mathonweb.com/help_ebook/html/complex_funcs.htm
+		const rePositive = ONE.add(this.re).pow(TWO);
+		const reNegative = ONE.sub(this.re).pow(TWO);
 
-		const realPos = ONE.add(c.real).pow(TWO);
-		const realNeg = ONE.sub(c.real).pow(TWO);
+		const imSquared = this.im.pow(TWO);
 
-		const imSquared = c.imaginary.pow(TWO);
+		const leftSquared = rePositive.add(imSquared).sqrt();
+		const rightSquared = reNegative.add(imSquared).sqrt();
 
-		const leftSquared = mJS.sqrt(realPos.add(imSquared));
-		const rightSquared = mJS.sqrt(realNeg.add(imSquared));
+		const a = leftSquared.sub(rightSquared).div(TWO);
+		const b = leftSquared.add(rightSquared).div(TWO);
+		const result = new Complex(
+			a.asin(),
+			b.add(
+				b.pow(TWO).sub(ONE).sqrt()
+			).ln(),
+		);
 
-		const a = mJS.divide(mJS.subtract(leftSquared, rightSquared), TWO);
-		const b = mJS.divide(mJS.add(leftSquared, rightSquared), TWO);
-
-		const result = new Complex(mJS.asin(a), ln(mJS.add(b, mJS.sqrt(b.pow(TWO).sub(ONE)))));
-
-		if (c.imaginary.lessThan(ZERO) || (c.real.greaterThan(ZERO) && c.imaginary.lessThanOrEqualTo(ZERO))) {
-			result.imaginary.s = -1;
+		if (this.im.lessThan(ZERO) || (this.re.greaterThan(ZERO) && this.im.lessThanOrEqualTo(ZERO))) {
+			result.im.s = -1;
 		}
 
 		return result;
 	}
 
-	static acos(c) {
-		return Complex.subtract(PI_OVER_TWO, Complex.asin(c));
+	/**
+	 * Returns the inverse cosine of this complex number.
+	 */
+	acos() {
+		return new Complex(PI_OVER_TWO).sub(this.asin());
 	}
 
-	static atan(c) {
-		c = Complex.convertToComplex(c);
+	/**
+	 * Returns the inverse tangent of this complex number.
+	 */
+	atan() {
+		const reSquared = this.re.pow(TWO);
+		const imSquared = this.im.pow(TWO);
 
-		const realSquared = c.real.pow(TWO);
-		const imSquared = c.imaginary.pow(TWO);
-
-		return new Complex(atan2(c.real.mul(TWO), ONE.sub(realSquared).sub(imSquared)).div(TWO), ln(mJS.divide(realSquared.add(mJS.pow(ONE.add(c.imaginary), TWO)), realSquared.add(mJS.pow(ONE.sub(c.imaginary), TWO)))).div(FOUR));
+		return new Complex(
+			Decimal.atan2(
+				this.re.mul(TWO),
+				ONE.sub(reSquared).sub(imSquared),
+			).div(TWO),
+			Decimal.div(
+				reSquared.add(ONE.add(this.im).pow(TWO)),
+				reSquared.add(ONE.sub(this.im).pow(TWO)),
+			).ln().div(FOUR),
+		);
 	}
 
-	static acsc(c) {
-		return Complex.asin(Complex.divide(ONE, c));
+	/**
+	 * Returns the inverse cosecant of this complex number.
+	 */
+	acsc() {
+		return this.recip().asin();
 	}
 
-	static asec(c) {
-		return Complex.acos(Complex.divide(ONE, c));
+	/**
+	 * Returns the inverse secant of this complex number.
+	 */
+	asec() {
+		return this.recip().acos();
 	}
 
-	static acot(c) {
-		return Complex.atan(Complex.divide(ONE, c));
+	/**
+	 * Returns the inverse cotangent of this complex number.
+	 */
+	acot() {
+		return this.recip().atan();
 	}
 
-	static sinh(c) {
-		c = Complex.convertToComplex(c);
-		return new Complex(sinh(c.real).mul(mJS.cos(c.imaginary)), cosh(c.real).mul(mJS.sin(c.imaginary)));
+	/**
+	 * Returns the hyperbolic sine of this complex number.
+	 */
+	sinh() {
+		return new Complex(
+			this.re.sinh().mul(this.im.cos()),
+			this.re.cosh().mul(this.im.sin()),
+		);
 	}
 
-	static cosh(c) {
-		c = Complex.convertToComplex(c);
-		return new Complex(cosh(c.real).mul(mJS.cos(c.imaginary)), sinh(c.real).mul(mJS.sin(c.imaginary)));
+	/**
+	 * Returns the hyperbolic cosine of this complex number.
+	 */
+	cosh() {
+		return new Complex(
+			this.re.cosh().mul(this.im.cos()),
+			this.re.sinh().mul(this.im.sin()),
+		);
 	}
 
-	static tanh(c) {
-		return Complex.divide(Complex.sinh(c), Complex.cosh(c));
+	/**
+	 * Returns the hyperbolic tangent of this complex number.
+	 */
+	tanh() {
+		return this.sinh().div(this.cosh());
 	}
 
-	static csch(c) {
-		return Complex.divide(ONE, Complex.sinh(c));
+	/**
+	 * Returns the hyperbolic cosecant of this complex number.
+	 */
+	csch() {
+		return this.sinh().recip();
 	}
 
-	static sech(c) {
-		return Complex.divide(ONE, Complex.cosh(c));
+	/**
+	 * Returns the hyperbolic secant of this complex number.
+	 */
+	sech() {
+		return this.cosh().recip();
 	}
 
-	static coth(c) {
-		return Complex.divide(ONE, Complex.tanh(c));
+	/**
+	 * Returns the hyperbolic cotangent of this complex number.
+	 */
+	coth() {
+		return this.tanh().recip();
 	}
 
-	// from https://mathworld.wolfram.com/InverseHyperbolicSine.html
-	static asinh(c) {
-		c = Complex.convertToComplex(c);
-		const result = Complex.multiply(Complex.neg_i, Complex.asin(Complex.multiply(Complex.i, c)));
+	/**
+	 * Returns the inverse hyperbolic sine of this complex number.
+	 */
+	asinh() {
+		// from https://mathworld.wolfram.com/InverseHyperbolicSine.html
+		const result = this.mul(I).asin().mul(NEG_I);
 
-		if (c.real.equals(ZERO) && c.imaginary.lessThan(ZERO)) {
-			result.real.s = -1;
+		if (this.re.eq(ZERO) && this.im.lt(ZERO)) {
+			result.re.s = -1;
 		} else {
-			result.real.s = c.real.s;
+			result.re.s = this.re.s;
 		}
 
-		result.imaginary.s = c.imaginary.s;
+		result.im.s = this.im.s;
 
 		return result;
 	}
 
-	// from https://mathworld.wolfram.com/InverseHyperbolicCosine.html
-	static acosh(c) {
-		return Complex.multiply(Complex.divide(Complex.exponent(Complex.subtract(c, ONE), ONE_HALF), Complex.exponent(Complex.subtract(ONE, c), ONE_HALF)), Complex.acos(c));
+	/**
+	 * Returns the inverse hyperbolic cosine of this complex number.
+	 */
+	acosh() {
+		// from https://mathworld.wolfram.com/InverseHyperbolicCosine.html
+		const num = this.sub(new Complex(ONE)).sqrt();
+		const den = new Complex(ONE).sub(this).sqrt();
+		return num.div(den).mul(this.acos());
 	}
 
-	// from https://mathworld.wolfram.com/InverseHyperbolicTangent.html
-	static atanh(c) {
-		return Complex.multiply(Complex.neg_i, Complex.atan(Complex.multiply(Complex.i, c)));
+	/**
+	 * Returns the inverse hyperbolic tangent of this complex number.
+	 */
+	atanh() {
+		// from https://mathworld.wolfram.com/InverseHyperbolicTangent.html
+		return this.mul(I).atan().mul(NEG_I);
 	}
 
-	// from complex.js
-	static acsch(c) {
-		c = Complex.convertToComplex(c);
-
-		if (c.imaginary.equals(ZERO)) {
-			return new Complex(c.real.equals(ZERO) ? c.INFINITY : ln(c.real.add(mJS.sqrt(c.real.pow(TWO).add(ONE)))), ZERO);
-		} else {
-			const sum = mJS.add(mJS.pow(c.real, TWO), mJS.pow(c.imaginary, TWO));
-			return Complex.asinh(new Complex(c.real.div(sum), c.imaginary.div(sum).neg()));
-		}
+	/**
+	 * Returns the inverse hyperbolic cosecant of this complex number.
+	 */
+	acsch() {
+		return this.recip().asinh();
 	}
 
-	// from complex.js
-	static asech(c) {
-		c = Complex.convertToComplex(c);
-
-		const imIsZero = c.imaginary.equals(ZERO);
-		if (c.real.equals(ZERO) && imIsZero) {
-			return Complex.infinity;
-		} else {
-			const sum = mJS.add(mJS.pow(c.real, TWO), mJS.pow(c.imaginary, TWO));
-			const result = Complex.acosh(new Complex(c.real.div(sum), c.imaginary.div(sum).neg()));
-
-			if (c.real.lessThan(ZERO) && imIsZero) {
-				result.imaginary.s = 1;
-			}
-
-			return result;
-		}
+	/**
+	 * Returns the inverse hyperbolic secant of this complex number.
+	 */
+	asech() {
+		return this.recip().acosh();
 	}
 
-	// from complex.js
-	static acoth(c) {
-		c = Complex.convertToComplex(c);
-
-		if (c.real.equals(ZERO) && c.imaginary.equals(ZERO)) {
-			return new Complex(ZERO, PI_OVER_TWO);
-		} else {
-			const sum = mJS.add(mJS.pow(c.real, TWO), mJS.pow(c.imaginary, TWO));
-			return Complex.atanh(new Complex(c.real.div(sum), c.imaginary.div(sum).neg()));
-		}
+	/**
+	 * Returns the inverse hyperbolic cotangent of this complex number.
+	 */
+	acoth() {
+		return this.recip().atanh();
 	}
 
-	clone() {
-		return new Complex(this.real, this.imaginary);
-	}
-
-	equals(c) {
-		c = Complex.convertToComplex(c);
-		return this.real.equals(c.real) && this.imaginary.equals(c.imaginary);
-	}
-
-	// return an object representing the complex number in javascript's number type
+	/**
+	 * Returns an object with the real and imaginary parts of this complex number in JavaScript's native number type.
+	 */
 	toNumber() {
-		return {real: this.real.toNumber(), imaginary: this.imaginary.toNumber()};
+		return {re: this.re.toNumber(), im: this.im.toNumber()};
 	}
 
+	/**
+	 * Returns an object with the real and imaginary parts of this complex number as strings.
+	 */
 	toJSON() {
-		return {real: this.real.toString(), imaginary: this.imaginary.toString()};
+		return {re: this.re.toString(), im: this.im.toString()};
 	}
 
 	toString() {
-		if (this.imaginary.equals(ZERO)) {
-			return this.real.toString();
-		} else {
-			let str = 'i';
-
-			if (this.imaginary.equals(NEG_ONE)) {
-				str = '-i';
-			} else if (!this.imaginary.equals(ONE)) {
-				str = this.imaginary + str;
-			}
-
-			if (this.real.greaterThan(ZERO)) {
-				str += '+' + this.real;
-			} else if (this.real.lessThan(ZERO)) {
-				str += '-' + this.real.abs();
-			}
-
-			return str;
+		if (this.im.equals(ZERO)) {
+			return this.re.toString();
+		} else if (this.re.equals(ZERO)) {
+			return this.im + 'i';
 		}
+
+		let str = this.re.toString();
+
+		if (this.im.lessThan(ZERO)) {
+			str += ' - ' + this.im.abs();
+		} else {
+			str += ' + ' + this.im;
+		}
+
+		return str + 'i';
 	}
 }
 
-Object.defineProperty(Complex, 'i', {value: new Complex(ZERO, ONE)});
-Object.defineProperty(Complex, 'neg_i', {value: new Complex(ZERO, NEG_ONE)});
-Object.defineProperty(Complex, 'zero', {value: new Complex(ZERO, ZERO)});
-Object.defineProperty(Complex, 'nan', {value: new Complex(NAN, NAN)});
-Object.defineProperty(Complex, 'infinity', {value: new Complex(INFINITY, INFINITY)});
+const I = new Complex(ZERO, ONE);
+const NEG_I = new Complex(ZERO, NEG_ONE);
