@@ -1,7 +1,22 @@
 {
 	"name": "big-complex.js",
 	"description": "Arbitrary-precision Complex type, backed by decimal.js",
-	"version": "1.0.1",
+	"keywords": [
+		"complex",
+		"arbitrary-precision",
+		"arbitrary",
+		"arithmetic",
+		"decimal",
+		"big",
+		"big-decimal",
+		"big-integer",
+		"big-number",
+		"big.js",
+		"decimal.js",
+		"number",
+		"precision"
+	],
+	"version": "1.0.2",
 	"type": "module",
 	"main": "complex.js",
 	"repository": {
